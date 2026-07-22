@@ -36,7 +36,32 @@ want a browser. Each session automatically leases its own tab (keyed on
 stealing each other's page. This is the failure the MCP extension bridge could not
 survive: one extension, N relay ports, last-connect-wins.
 
-Installed at `~/.claude/tools/effigy`, on PATH as `effigy` (symlink in `~/.local/bin`).
+## Install
+
+Requires **macOS** (Chrome's profile layout and the Keychain-backed cookie
+encryption are macOS-specific) and **Node ≥ 20.11** (`import.meta.filename`).
+
+```
+git clone git@github.com:<you>/effigy.git ~/.claude/tools/effigy
+cd ~/.claude/tools/effigy
+npm install                                   # one dep: playwright (~150MB Chromium)
+ln -sf "$PWD/effigy.mjs" ~/.local/bin/effigy  # or anywhere on PATH
+effigy help
+```
+
+Also expected:
+
+- **Google Chrome**, at `/Applications/Google Chrome.app` — required for cloned
+  profiles, which will not decrypt their cookies under any other binary. Uncloned
+  profiles use Playwright's bundled Chromium and don't need it.
+- **`/usr/bin/sqlite3`** — ships with macOS. Used to snapshot the cookie DB
+  consistently while Chrome is running; without it the clone falls back to a plain
+  file copy, which can catch a half-written page.
+- **Rabby**, only if you want a wallet in an uncloned profile. Cloned profiles bring
+  whatever extensions the source profile had.
+
+Nothing is written outside `~/.effigy/` (profiles, logs, lease state) and the symlink.
+No config file, no daemon at login, no MCP registration.
 
 ## Why it exists
 
