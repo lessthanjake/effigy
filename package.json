@@ -1,0 +1,9 @@
+{
+  "name": "effigy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headed, session-bearing browser daemon for agent-driven wallet-gated flows.",
+  "bin": { "effigy": "./effigy.mjs" },
+  "dependencies": { "playwright": "1.61.1" }
+}
