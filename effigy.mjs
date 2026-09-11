@@ -407,7 +407,7 @@ const up = async () => {
     const s = readState();
     if (s?.port && (await cdpAlive(s.port))) {
       console.log(`up: profile=${PROFILE} port=${s.port} pid=${s.pid} profileDir=${paths.profile}`);
-      if (s.cloned) console.log(`cloned profile: real Chrome binary, your own extensions and sessions`);
+      if (s.cloned) console.log(`cloned profile: real ${BROWSERS[readCloneMarker(paths.profile)?.browser || "chrome"]?.label ?? "Chrome"} binary, your own extensions and sessions`);
       else if (s.rabby) console.log(`rabby: loaded from ${s.rabby}`);
       else console.log("rabby: not loaded (no Rabby found in Chrome, or --no-rabby)");
       return;
