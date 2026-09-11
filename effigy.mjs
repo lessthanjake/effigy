@@ -82,7 +82,7 @@ const positional = () => {
   }
   return out;
 };
-const VALUED_FLAGS = new Set(["profile", "port", "channel", "tab", "selector", "wait-for", "n", "timeout", "as", "window-size"]);
+const VALUED_FLAGS = new Set(["profile", "port", "channel", "tab", "selector", "wait-for", "n", "timeout", "as", "window-size", "browser", "from", "to"]);
 
 /**
  * Who is asking. You may run many agent sessions at once, and any of them may
@@ -220,6 +220,34 @@ const cmpVersion = (a, b) => {
 // ------------------------------------------------------------------- cloning
 
 const CHROME_ROOT = path.join(HOME, "Library/Application Support/Google/Chrome");
+
+/**
+ * Chromium-family browsers a profile can be cloned from. Each keeps its cookie key
+ * in the login Keychain under its own "<Name> Safe Storage" item, and only that
+ * browser's binary is on the item's ACL — so a clone must be launched with the
+ * SAME binary it came from (Chrome via Playwright's `channel`, others via
+ * `executablePath`). `up` reads `browser` from the clone marker and does this.
+ */
+const BROWSERS = {
+  chrome: { root: CHROME_ROOT, exe: null, label: "Chrome" },
+  brave: {
+    root: path.join(HOME, "Library/Application Support/BraveSoftware/Brave-Browser"),
+    exe: "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    label: "Brave",
+  },
+  edge: {
+    root: path.join(HOME, "Library/Application Support/Microsoft Edge"),
+    exe: "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    label: "Edge",
+  },
+};
+const readCloneMarker = (profileDir) => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(profileDir, ".effigy-clone.json"), "utf8"));
+  } catch {
+    return null;
+  }
+};
 
 /**
  * What NOT to carry over from a real Chrome profile.
@@ -404,7 +432,9 @@ const daemon = async () => {
   // A cloned profile already carries your real extensions (Rabby included,
   // with his vault), and its cookies only decrypt under the real Chrome binary
   // — see `clone`. So: real Chrome, and no unpacked Rabby to bolt on.
-  const cloned = fs.existsSync(path.join(paths.profile, ".effigy-clone.json"));
+  const marker = readCloneMarker(paths.profile);
+  const cloned = !!marker;
+  const browser = BROWSERS[marker?.browser || "chrome"] || BROWSERS.chrome;
   const rabby = has("no-rabby") || cloned ? null : await stageRabby().catch(() => null);
   const [w, h] = (flag("window-size", "1440,960") || "1440,960").split(",");
 
@@ -420,7 +450,11 @@ const daemon = async () => {
 
   const context = await chromium.launchPersistentContext(paths.profile, {
     headless: false,
-    channel: flag("channel") || (cloned ? "chrome" : undefined),
+    // A clone launches with the binary it was cloned from (see BROWSERS): Chrome via
+    // channel, Brave/Edge via executablePath (Playwright allows only one of the two).
+    ...(cloned && browser.exe
+      ? { executablePath: browser.exe }
+      : { channel: flag("channel") || (cloned ? "chrome" : undefined) }),
     args,
     viewport: null, // let the real window size govern
     ignoreDefaultArgs: [
@@ -867,16 +901,29 @@ const commands = {
   async clone() {
     const from = flag("from", "Default");
     const to = flag("to", flag("profile") || (PROFILE === "default" ? "real" : PROFILE));
-    const src = path.join(CHROME_ROOT, from);
+    // --browser chrome|brave|edge. Default: chrome, unless Chrome has no profile dir and
+    // exactly one other supported browser does.
+    let browserName = flag("browser");
+    if (!browserName) {
+      const present = Object.entries(BROWSERS).filter(([, b]) => fs.existsSync(b.root)).map(([k]) => k);
+      browserName = present.includes("chrome") || present.length !== 1 ? "chrome" : present[0];
+    }
+    const browser = BROWSERS[browserName];
+    if (!browser) die(`effigy: unknown --browser "${browserName}". Known: ${Object.keys(BROWSERS).join(", ")}`);
+    if (browser.exe && !fs.existsSync(browser.exe)) die(`effigy: ${browser.label} binary not found at ${browser.exe}`);
+    const SRC_ROOT = browser.root;
+    const src = path.join(SRC_ROOT, from);
     const dstRoot = path.join(ROOT, "profiles", to);
     const dst = path.join(dstRoot, "Default");
 
     if (!fs.existsSync(src)) {
-      const avail = fs
-        .readdirSync(CHROME_ROOT, { withFileTypes: true })
-        .filter((e) => e.isDirectory() && fs.existsSync(path.join(CHROME_ROOT, e.name, "Preferences")))
-        .map((e) => e.name);
-      die(`effigy: no Chrome profile "${from}". Available: ${avail.join(", ")}`);
+      const avail = fs.existsSync(SRC_ROOT)
+        ? fs
+            .readdirSync(SRC_ROOT, { withFileTypes: true })
+            .filter((e) => e.isDirectory() && fs.existsSync(path.join(SRC_ROOT, e.name, "Preferences")))
+            .map((e) => e.name)
+        : [];
+      die(`effigy: no ${browser.label} profile "${from}". Available: ${avail.join(", ") || "(none)"}`);
     }
     const liveState = (() => {
       try {
@@ -920,25 +967,25 @@ const commands = {
     await copyTree("");
     // Lives at the user-data-dir root, one level above the profile.
     try {
-      fs.copyFileSync(path.join(CHROME_ROOT, "Local State"), path.join(dstRoot, "Local State"));
+      fs.copyFileSync(path.join(SRC_ROOT, "Local State"), path.join(dstRoot, "Local State"));
     } catch {
       /* optional */
     }
     fs.writeFileSync(
       path.join(dstRoot, ".effigy-clone.json"),
-      JSON.stringify({ from, at: new Date().toISOString(), chromeRoot: CHROME_ROOT }, null, 2),
+      JSON.stringify({ from, at: new Date().toISOString(), browser: browserName, sourceRoot: SRC_ROOT }, null, 2),
     );
 
     console.log(
       [
-        `cloned: Chrome "${from}" -> effigy profile "${to}"  (${files} files, ${mb(dirSize(dstRoot))})`,
+        `cloned: ${browser.label} "${from}" -> effigy profile "${to}"  (${files} files, ${mb(dirSize(dstRoot))})`,
         `        carried: cookies, localStorage, IndexedDB, service workers, installed extensions`,
         `        left behind: saved passwords, autofill/cards, history, caches`,
         ``,
         `This is a second copy of your logged-in state at rest: ${dstRoot}`,
         `Wipe it any time with: rm -rf ${dstRoot}`,
         ``,
-        `next: effigy up --profile ${to}        (uses real Chrome automatically — required to decrypt the cookies)`,
+        `next: effigy up --profile ${to}        (uses the real ${browser.label} binary automatically — required to decrypt the cookies)`,
         `      effigy cookies --profile ${to}   (counts only, never values — proves the sessions came across)`,
       ].join("\n"),
     );
