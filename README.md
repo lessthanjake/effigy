@@ -42,18 +42,30 @@ Requires **macOS** (Chrome's profile layout and the Keychain-backed cookie
 encryption are macOS-specific) and **Node ≥ 20.11** (`import.meta.filename`).
 
 ```
-git clone git@github.com:<you>/effigy.git ~/.claude/tools/effigy
+git clone https://github.com/lessthanjake/effigy.git ~/.claude/tools/effigy
 cd ~/.claude/tools/effigy
 npm install                                   # one dep: playwright (~150MB Chromium)
 ln -sf "$PWD/effigy.mjs" ~/.local/bin/effigy  # or anywhere on PATH
+ln -sfn "$PWD/skill" ~/.claude/skills/effigy  # Claude Code skill (see below)
 effigy help
+effigy clone --browser brave                  # or chrome | edge: snapshot your logged-in sessions
 ```
+
+### Claude Code skill
+
+`skill/SKILL.md` teaches a Claude Code session how to drive effigy: install check,
+`--profile real`, flag order, click-by-coordinate fallback, the rules. The symlink
+above makes it show up in every session on this machine; nothing else to register.
+Sharing the skill alone is not enough — the recipient also installs this repo and
+clones *their own* browser profile. Profiles under `~/.effigy/` are identities and
+are never shared.
 
 Also expected:
 
-- **Google Chrome**, at `/Applications/Google Chrome.app` — required for cloned
-  profiles, which will not decrypt their cookies under any other binary. Uncloned
-  profiles use Playwright's bundled Chromium and don't need it.
+- **The browser you cloned from** — Chrome (`/Applications/Google Chrome.app`), Brave
+  or Edge. A cloned profile's cookies are Keychain-encrypted for that one binary and
+  will not decrypt under any other; `up` launches the source browser automatically.
+  Uncloned profiles use Playwright's bundled Chromium and need none of them.
 - **`/usr/bin/sqlite3`** — ships with macOS. Used to snapshot the cookie DB
   consistently while Chrome is running; without it the clone falls back to a plain
   file copy, which can catch a half-written page.
@@ -94,10 +106,13 @@ report *what* is being asked for without touching it.
 ## Cloning a real Chrome profile
 
 ```
-effigy clone [--from Default] [--to real] [--force]
+effigy clone [--browser chrome|brave|edge] [--from Default] [--to real] [--force]
 effigy up --profile real
 effigy cookies --profile real          # counts by domain, never values
 ```
+
+`--browser` defaults to Chrome, or to the single other supported browser present when
+Chrome has no profile directory (a Brave-only Mac clones from Brave without the flag).
 
 Carried: cookies, Local/Session Storage, IndexedDB, service worker databases,
 installed extensions (Rabby included, with its vault).
@@ -153,7 +168,7 @@ mangled argument. Use the env var or spell the flag out.)
 
 | | |
 |---|---|
-| `clone [--from Default] [--to real] [--force]` | snapshot a real Chrome profile's sessions |
+| `clone [--browser chrome\|brave\|edge] [--from Default] [--to real] [--force]` | snapshot a real browser profile's sessions |
 | `cookies [--host X] [--n 25]` | cookie counts by domain — never values |
 | `leases` / `claim` / `release` | who owns which tab; take one; give it back |
 | `up [--port N] [--channel chrome] [--no-rabby] [--window-size W,H] [--ephemeral]` | boot the daemon |
