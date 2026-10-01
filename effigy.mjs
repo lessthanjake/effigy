@@ -490,6 +490,15 @@ const daemon = async () => {
   });
   console.log(`[daemon] up on ${port} (pid ${process.pid})`);
 
+  // A page's beforeunload dialog (X's "leave page?" on a composer with text)
+  // can be answered by a connected client and by this daemon at once; the
+  // loser's Page.handleJavaScriptDialog rejects with "No dialog is showing"
+  // as an unhandled rejection, which killed the daemon and closed the window
+  // every time (2026-09-20). Log it and keep the window.
+  process.on("unhandledRejection", (err) => {
+    console.error("[daemon] unhandled rejection (kept alive):", err?.message ?? err);
+  });
+
   // When you close the window, the context closes — tear the state down so
   // the next command says "start one" instead of timing out on a dead port.
   const bye = async () => {
