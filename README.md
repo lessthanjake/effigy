@@ -141,6 +141,18 @@ A cloned profile also **must** run the browser binary it was cloned from. Only t
 binary is on the Keychain item's ACL. `up` detects the clone marker and does this
 for you.
 
+### Extensions that come across dead
+
+`clone` copies a browser that is running, so an extension's "worker registered"
+preference and Chrome's service-worker database can disagree. Chrome trusts the
+preference, never registers the worker again, and the extension is installed but
+dead: a wallet injects its provider into pages and then never answers, and its
+content scripts log `Could not establish connection. Receiving end does not exist.`
+on every tab. On each `up` of a cloned profile, effigy finds enabled extensions whose
+manifest declares a background service worker but have no registration, and reloads
+them from `chrome://extensions`. That registers the worker and leaves the extension's
+storage (a wallet's vault included) untouched. `daemon.log` names what was repaired.
+
 ## One-time setup (uncloned profiles only)
 
 ```
@@ -235,6 +247,11 @@ fork this launch code, keep that. Verify with
 `service_worker` target means it loaded. Chrome stable ≥137 dropped `--load-extension`
 entirely, which is why uncloned profiles run Playwright's bundled Chromium and not
 `--channel chrome`.
+
+**A wallet or extension does nothing in a cloned profile** (MetaMask never pops up, the
+console fills with `Receiving end does not exist`): its service worker was lost in the
+clone. Restarting the window (`effigy down`, `effigy up`) runs the repair; see
+"Extensions that come across dead" above.
 
 **Collision with gstack `/browse`**: that daemon lingers and fights over CDP. `up` warns
 when it sees one; kill it with `pkill -f 'gstack/browse/src/server.ts'`. One headed stack

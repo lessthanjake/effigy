@@ -478,6 +478,7 @@ const daemon = async () => {
   });
 
   wireLogging(context);
+  if (cloned) repairExtensionWorkers(context).catch((e) => console.log(`[daemon] worker repair skipped: ${e.message}`));
 
   writeState({
     profile: PROFILE,
@@ -508,6 +509,61 @@ const daemon = async () => {
   context.on("close", bye);
   process.on("SIGTERM", bye);
   process.on("SIGINT", bye);
+};
+
+/**
+ * Re-register extension service workers a clone lost.
+ *
+ * `clone` copies a running Chrome. Preferences (which records "worker registered
+ * for version X") and the Service Worker database (which holds the registration)
+ * can land out of step. Chrome trusts the preference, never re-registers, and the
+ * extension is dead: its content script still injects a wallet into every page,
+ * but nothing answers. MetaMask then hangs any dapp that asks it, and the
+ * content scripts retry the dead port on every tab ("Receiving end does not
+ * exist"), which is what once grew console.jsonl to 58GB.
+ *
+ * Reloading an extension from chrome://extensions registers its worker again and
+ * touches nothing in its storage (a wallet's vault stays as it was). Only enabled
+ * MV3 extensions whose manifest declares a background service_worker and that
+ * have no live registration are reloaded.
+ */
+const repairExtensionWorkers = async (context) => {
+  const page = await context.newPage();
+  try {
+    await page.goto("chrome://extensions/");
+    const items = await page.evaluate(() => chrome.developerPrivate.getExtensionsInfo({ includeDisabled: false }));
+    const cdp = await context.newCDPSession(page);
+    const scopes = new Set();
+    cdp.on("ServiceWorker.workerRegistrationUpdated", (e) =>
+      e.registrations.forEach((r) => (r.isDeleted ? scopes.delete(r.scopeURL) : scopes.add(r.scopeURL))),
+    );
+    await cdp.send("ServiceWorker.enable");
+    await new Promise((r) => setTimeout(r, 1500));
+    const extRoot = path.join(paths.profile, "Default", "Extensions");
+    // Any installed version's manifest will do: the page reports the display version
+    // (MetaMask "13.48.0") while the folder carries the full one ("13.48.0.0_0").
+    const declaresWorker = (id) => {
+      try {
+        return fs.readdirSync(path.join(extRoot, id)).some((d) => {
+          try {
+            return !!JSON.parse(fs.readFileSync(path.join(extRoot, id, d, "manifest.json"), "utf8")).background?.service_worker;
+          } catch {
+            return false;
+          }
+        });
+      } catch {
+        return false; // unpacked, or not where a Web Store install lives: leave it alone
+      }
+    };
+    const dead = items.filter(
+      (x) => x.state === "ENABLED" && !scopes.has(`chrome-extension://${x.id}/`) && declaresWorker(x.id),
+    );
+    for (const x of dead) await page.evaluate((id) => chrome.developerPrivate.reload(id, { failQuietly: true }), x.id);
+    if (dead.length) console.log(`[daemon] re-registered extension workers: ${dead.map((x) => x.name).join(", ")}`);
+    await cdp.detach();
+  } finally {
+    await page.close().catch(() => {});
+  }
 };
 
 /**

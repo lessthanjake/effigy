@@ -51,6 +51,15 @@ Three landmines, all found the hard way — keep the `ignoreDefaultArgs` list in
   the Keychain item's ACL. Chrome ≥137 also dropped `--load-extension`, which is why
   uncloned profiles use Playwright's bundled Chromium instead.
 
+And one the clone itself causes: copying a running Chrome can leave Preferences
+saying an extension's service worker is registered while the Service Worker
+database has no such registration. Chrome trusts the preference and never
+re-registers, so the extension is dead (a wallet that injects a provider and never
+answers). `up` on a clone runs `repairExtensionWorkers`: enabled extensions whose
+manifest declares `background.service_worker` but have no registration are reloaded
+from chrome://extensions, which re-registers them and leaves their storage alone.
+Which extensions break differs per clone.
+
 Tab leases key on the CDP `targetId` (via `newCDPSession` → `Target.getTargetInfo`),
 not on an index into `context.pages()` — indices reorder as other sessions open tabs.
 Lease files are one-per-session so concurrent writers never touch the same file.
