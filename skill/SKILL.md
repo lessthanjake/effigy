@@ -100,7 +100,7 @@ effigy release --profile real                     # give back only your tab when
 ~/.claude/tools/effigy/        the repo: effigy.mjs, README.md, CLAUDE.md, skill/SKILL.md
 ~/.effigy/profiles/<name>      user-data-dir (logins, extensions). Never commit, never share.
 ~/.effigy/state/<name>.json    pid, port, profile dir
-~/.effigy/logs/<name>/         daemon.log, console.jsonl, net.jsonl
+~/.effigy/logs/<name>/         daemon.log, console.jsonl, net.jsonl  (each capped at 20MB, rolled to .1; a line repeated within a minute is counted, not written)
 ```
 
 Full command table and the launch-flag landmines (`--use-mock-keychain`,

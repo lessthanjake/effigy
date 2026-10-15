@@ -181,7 +181,7 @@ one mangled argument. Use the env var or spell the flag out.)
 | `type --selector SEL "text" [--enter]` | fill a field |
 | `press <Key>` / `wait <ms\|selector>` / `close` | keyboard, waiting, close tab |
 | `eval "js"` | evaluate in the page (expression or async IIFE body) |
-| `console [--n 40] [--clear]` | errors/warnings the pages logged while nobody was watching |
+| `console [--n 40] [--clear]` | errors/warnings the pages logged while nobody was watching. Identical lines within a minute collapse into one carrying `suppressed: N`; files roll over at 20MB |
 | `net [--n 40] [--clear]` | failed requests and ≥400 responses |
 | `run <script.mjs>` | escape hatch: `export default async ({context, page}) => {}` |
 

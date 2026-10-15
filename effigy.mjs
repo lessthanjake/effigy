@@ -513,11 +513,51 @@ const daemon = async () => {
 /**
  * Console + network capture. Agents cannot watch a window, so the daemon keeps
  * a rolling JSONL of everything the pages said while nobody was connected.
+ *
+ * Bounded two ways, because one broken extension retrying a dead port on every
+ * tab once wrote 58GB here:
+ *   - a line identical (file, level, text, page origin) to one written in the last
+ *     minute is counted, not written; the next copy that does land carries
+ *     `suppressed: N`.
+ *   - each file rolls over to `<name>.1` at LOG_MAX bytes; one old generation is kept.
  */
+const LOG_MAX = 20e6;
+const LOG_QUIET_MS = 60_000;
 const wireLogging = (context) => {
+  const seen = new Map(); // key -> { at, suppressed }
+  const sizes = new Map(); // file -> bytes, so rotation never stats per line
+  const origin = (u) => {
+    try {
+      return new URL(u).origin;
+    } catch {
+      return u;
+    }
+  };
   const append = (file, row) => {
     try {
-      fs.appendFileSync(logFile(file), JSON.stringify({ t: new Date().toISOString(), ...row }) + "\n");
+      const now = Date.now();
+      const key = `${file}\0${row.level ?? row.kind}\0${row.status ?? ""}\0${row.text ?? row.error ?? ""}\0${origin(row.url)}`;
+      const last = seen.get(key);
+      if (last && now - last.at < LOG_QUIET_MS) {
+        last.suppressed++;
+        return;
+      }
+      if (seen.size > 5000) seen.clear();
+      seen.set(key, { at: now, suppressed: 0 });
+      const out = JSON.stringify({ t: new Date(now).toISOString(), ...row, ...(last?.suppressed ? { suppressed: last.suppressed } : {}) }) + "\n";
+      const p = logFile(file);
+      let size = sizes.get(p);
+      if (size === undefined) size = fs.existsSync(p) ? fs.statSync(p).size : 0;
+      if (size > LOG_MAX) {
+        try {
+          fs.renameSync(p, `${p}.1`);
+        } catch {
+          /* `console --clear` already removed it; the count was stale */
+        }
+        size = 0;
+      }
+      fs.appendFileSync(p, out);
+      sizes.set(p, size + Buffer.byteLength(out));
     } catch {
       /* logging must never take the daemon down */
     }
@@ -1050,22 +1090,55 @@ const commands = {
   help: () => console.log(HELP),
 };
 
+/**
+ * The last `n` lines of a file, read backwards in chunks: a log can be large and
+ * `readFileSync` on a multi-GB file hangs or throws past V8's string limit.
+ */
+const tailLines = (file, n) => {
+  let fd;
+  try {
+    fd = fs.openSync(file, "r");
+  } catch {
+    return [];
+  }
+  try {
+    const CHUNK = 1 << 16;
+    let pos = fs.fstatSync(fd).size;
+    let buf = Buffer.alloc(0);
+    let count = 0;
+    while (pos > 0 && count <= n) {
+      const len = Math.min(CHUNK, pos);
+      pos -= len;
+      const chunk = Buffer.alloc(len);
+      fs.readSync(fd, chunk, 0, len, pos);
+      buf = Buffer.concat([chunk, buf]);
+      for (const b of chunk) if (b === 10) count++;
+    }
+    const lines = buf.toString("utf8").split("\n").filter(Boolean);
+    // Unless we read from byte 0, the first line is a fragment.
+    return (pos > 0 ? lines.slice(1) : lines).slice(-n);
+  } finally {
+    fs.closeSync(fd);
+  }
+};
+
 const tailLog = (name) => {
   const file = logFile(name);
   if (has("clear")) {
     fs.rmSync(file, { force: true });
+    fs.rmSync(`${file}.1`, { force: true });
     return console.log(`cleared ${name}`);
   }
-  if (!fs.existsSync(file)) return console.log(`${name}: empty`);
-  const lines = fs.readFileSync(file, "utf8").trim().split("\n").filter(Boolean);
   const n = Number(flag("n", 40));
+  let lines = tailLines(file, n);
+  if (lines.length < n) lines = [...tailLines(`${file}.1`, n - lines.length), ...lines];
+  if (!lines.length) return console.log(`${name}: empty`);
   console.log(
     lines
-      .slice(-n)
       .map((l) => {
         try {
           const r = JSON.parse(l);
-          return `${r.t.slice(11, 19)} ${r.level ?? r.kind}${r.status ? " " + r.status : ""} ${r.text ?? ""} ${r.url ?? ""}`.trim();
+          return `${r.t.slice(11, 19)} ${r.level ?? r.kind}${r.status ? " " + r.status : ""} ${r.text ?? ""} ${r.url ?? ""}${r.suppressed ? ` (+${r.suppressed} identical in the minute before)` : ""}`.trim();
         } catch {
           return l;
         }
