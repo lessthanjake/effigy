@@ -263,3 +263,7 @@ at a time.
   session, wallet, or window is needed.
 - Your project's own Playwright test suite is the assertion layer. effigy is for
   looking at pages; tests prove behavior.
+
+## Experimental: assist a tab in ordinary Chrome
+
+The `feature/native-browser-assist` branch adds a Chrome extension and Native Messaging transport. It can fill verified forms and keep a resumable generation queue in a user-selected tab, without launching another browser. Generation remains manual unless explicitly enabled. See [setup, scope and tests](docs/assist.md). Existing Effigy commands keep their original behavior.

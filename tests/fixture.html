@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Effigy local form fixture</title><style>body{font:18px system-ui;max-width:700px;margin:40px auto;background:#17202b;color:#edf2f7}input,textarea,[contenteditable]{display:block;width:95%;padding:12px;margin:12px 0;background:#fff;color:#111}button{padding:15px;margin:10px 0} [role=slider]{padding:12px;background:#35445a} #challenge{background:#794922;padding:20px}</style></head><body>
+<h1>Effigy Assist — local test</h1><p>No Suno connection or generation credits used.</p>
+<input id="title" placeholder="Song Title (Optional)"><textarea id="style"></textarea><input id="exclude"><div id="lyrics" contenteditable="true" role="textbox" aria-label="Lyrics editor"></div>
+<div id="slider" role="slider" tabindex="0" aria-label="Weirdness" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">Weirdness: 50</div>
+<input id="secret" type="password" value="fixture-only"><button id="create">Create test pair</button><div id="songs"></div><div id="challenge" data-effigy-challenge hidden>Verify you are human (test fixture)</div>
+<script>
+window.formState={};window.submissions=0;
+for(const id of ['title','style','exclude','lyrics'])document.getElementById(id).addEventListener('input',e=>window.formState[id]=e.target.value??e.target.textContent);
+const slider=document.getElementById('slider');slider.onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){let v=Math.max(0,Math.min(100,Number(slider.getAttribute('aria-valuenow'))+(e.key==='ArrowRight'?1:-1)));slider.setAttribute('aria-valuenow',v);slider.textContent='Weirdness: '+v;}};
+document.getElementById('create').onclick=()=>{window.submissions++;for(let i=0;i<2;i++){let a=document.createElement('a');a.href='/song/'+window.submissions+'-'+i;a.textContent=window.formState.title;document.getElementById('songs').append(a,document.createElement('br'));}};
+</script></body></html>
