@@ -5,6 +5,13 @@ export function permitted(url) {
  try {const u=new URL(url);return u.origin==='https://suno.com'||(u.protocol==='http:'&&['127.0.0.1','localhost'].includes(u.hostname));} catch{return false;}
 }
 const badge=(text,color='#30643b')=>{chrome.action.setBadgeText({text});chrome.action.setBadgeBackgroundColor({color});};
+async function reportError(error) {
+ const message=String(error.message||error);
+ badge('ERR','#944');
+ await chrome.action.setTitle({title:`Effigy: ${message}`});
+ await chrome.storage.local.set({lastError:{message,at:new Date().toISOString()}});
+ console.error(message);
+}
 async function selected() {
  const {selection}=await chrome.storage.session.get('selection');
  if(!selection)throw new Error('No selected tab. Click the Effigy icon on Suno or localhost.');
@@ -47,19 +54,27 @@ export function connect() {
  });
 }
 async function toggle(tab) {
- if(!tab?.id||!permitted(tab.url)){badge('NO','#944');return;}
+ if(!tab?.id||!permitted(tab.url)){
+  badge('NO','#944');
+  await chrome.action.setTitle({title:'Effigy: open a Suno or localhost page, then click this icon. Browser settings and other sites are not supported.'});
+  return;
+ }
  const {selection}=await chrome.storage.session.get('selection');
  if(selection?.tabId===tab.id&&port){await chrome.storage.session.remove('selection');badge('OFF');return;}
- const u=new URL(tab.url),pattern=u.origin==='https://suno.com'?'https://suno.com/*':`${u.protocol}//${u.hostname}/*`;
- const granted=await chrome.permissions.request({origins:[pattern]});
- if(!granted){badge('NO','#944');return;}
+ // Clicking the action (or its shortcut) grants activeTab for this origin.
+ // No optional permission prompt is needed, especially after an async storage read.
+ const u=new URL(tab.url);
  await chrome.storage.session.set({selection:{tabId:tab.id,origin:u.origin}});
+ await chrome.storage.local.remove('lastError');
  connect();badge('ON');
  chrome.action.setTitle({title:'Effigy assisting this tab. Click to pause.'});
 }
-chrome.action.onClicked.addListener(tab=>{toggle(tab).catch(error=>{badge('ERR','#944');console.error(error.message);});});
+chrome.action.onClicked.addListener(tab=>toggle(tab).catch(reportError));
 chrome.commands.onCommand.addListener(async command=>{
- if(command==='toggle-assistance')await toggle((await chrome.tabs.query({active:true,currentWindow:true}))[0]);
+ if(command==='toggle-assistance') {
+  try {await toggle((await chrome.tabs.query({active:true,currentWindow:true}))[0]);}
+  catch(error){await reportError(error);}
+ }
 });
 chrome.tabs.onRemoved.addListener(async tabId=>{
  const {selection}=await chrome.storage.session.get('selection');

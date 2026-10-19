@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Effigy Assist (Local)",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "User-selected tab assistance through a local native host.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAz43LuCRJWCcS+b6/yDUTYvBRNGJgJ3URvawbitTZ0t25HmCC+2aioZ5Ge5JtPGXuMGHWudgvOyGLkM/vO7Jrc3XKjXZwD1pvXXQKHdSzIQnBMvArsuNR+KsyoBr6lkohRpiJpMVMPkSRhc9ozxbY+bH5P4sjsVbiIZxvI6jPAZ7rmtWAcAUerfF9p2UVPGaEr6ipA8ZE2fSaxcShwv2FzpkX0gHQiwA1rcaqI9Y+FaptR2h033FYxT50iWwz3VYHzWt0v28XhmLdeqpmBW9duwkEtPYBPZ9fRUGFEwi2gRXeofCwqWOTi1xEU09aUQAqLgHFlkw4cnpDfeU0d7m5xwIDAQAB",
   "permissions": [
@@ -9,11 +9,6 @@
     "scripting",
     "nativeMessaging",
     "storage"
-  ],
-  "optional_host_permissions": [
-    "https://suno.com/*",
-    "http://127.0.0.1/*",
-    "http://localhost/*"
   ],
   "background": {
     "service_worker": "background.js",

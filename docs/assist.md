@@ -8,7 +8,7 @@ This branch adds `effigy assist ...` alongside the existing Playwright commands.
 - Persisted generation queue: prepare, optional explicit submit, reconcile observed song IDs.
 - Human generation is the default. `submit` requires `--allow-submit` on every invocation.
 - Visible challenges stop commands. Detection is conservative and cannot identify every site-level failure. The assistant does not solve challenges or repeatedly resubmit.
-- Supported origins: `https://suno.com`, `http://127.0.0.1`, `http://localhost`. The extension asks for the selected host only. Wallet/extension pages are excluded.
+- Supported origins: `https://suno.com`, `http://127.0.0.1`, `http://localhost`. Clicking the extension grants temporary activeTab access to that origin; no extra permissions prompt is needed. Wallet/extension pages are excluded.
 - One selected tab and one command at a time. Pause prevents new commands; it cannot roll back an action already dispatched.
 - Downloads, playlist picking, automatic batch advancement, and audio completion detection are **not implemented in this first prototype**. Song IDs observed does not mean audio is finished.
 - Sliders and rich-text fields depend on the site's handlers accepting browser events. Readback is checked, but server acceptance and editor framework state must still be tested on Suno.
@@ -26,9 +26,9 @@ This writes `~/.effigy/assist/native-host.sh` and the user-level Chrome native h
 In your normally launched Google Chrome:
 
 1. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this checkout's `extension` folder.
-2. Open the Suno tab. Click **Effigy Assist (Local)** in Chrome's Extensions menu and allow access to Suno if prompted. Pinning the extension is optional.
+2. Open the Suno tab. Click **Effigy Assist (Local)** in Chrome's Extensions menu. Pinning the extension is optional.
 
-The icon says ON after selection. Click again to pause. A native-host connection error changes it to OFF; the tooltip explains the error. WAIT indicates a refused or failed command. Initial setup needs several clicks; normal sessions need one tab-selection action. An optional shortcut can be assigned at `chrome://extensions/shortcuts`.
+The icon says ON after selection. Click again to pause. NO means the active page is unsupported. ERR includes the exact activation failure in the icon tooltip and saves it as `lastError` in extension-local storage. A native-host connection error changes it to OFF; the tooltip explains the error. WAIT indicates a refused or failed command. Initial setup needs several clicks; normal sessions need one tab-selection action. An optional shortcut can be assigned at `chrome://extensions/shortcuts`.
 
 The extension ID is fixed by its manifest key: `nohbkchohilccjlcklaoceogolbfhnho`. Native Messaging accepts this extension only. Native traffic uses length-prefixed JSON, never stdout logging. The local socket is 0600 inside a 0700 directory. Same-user local processes can issue commands, so this is not a sandbox against other software running as your user.
 
