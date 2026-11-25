@@ -27,7 +27,7 @@ try{
  // Simulate user tab selection in test; do not control an extension UI or production tab.
  await worker.evaluate(async origin=>{
   const tabs=await chrome.tabs.query({});const tab=tabs.find(t=>t.url?.startsWith(origin));
-  await chrome.storage.session.set({selection:{tabId:tab.id,origin}});
+  await chrome.storage.local.set({selection:{tabId:tab.id,origin}});
   globalThis.testConnect();
  },origin);
  let connected=false;

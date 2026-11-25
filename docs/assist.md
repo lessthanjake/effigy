@@ -4,7 +4,7 @@ This branch adds `effigy assist ...` alongside the existing Playwright commands.
 
 ## Current scope
 
-- `status`, `snapshot`, verified `fill`, and `pause` through a private local Unix socket.
+- `status`, `snapshot`, verified `fill`, visible text-button clicks, and `pause` through a private local Unix socket.
 - Persisted generation queue: prepare, optional explicit submit, reconcile observed song IDs.
 - Human generation is the default. `submit` requires `--allow-submit` on every invocation.
 - Visible challenges stop commands. Detection is conservative and cannot identify every site-level failure. The assistant does not solve challenges or repeatedly resubmit.

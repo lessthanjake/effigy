@@ -1,7 +1,7 @@
 {
   "jobs": [
     {
-      "id": "archive-pair-1",
+      "id": "archive-pair-1-v2",
       "title": "The Archive (TOP)",
       "origin": "https://suno.com",
       "expectedSongs": 2,
@@ -24,10 +24,6 @@
           "value": "vocals, lyrics, rap, pop chorus, EDM drop, fade out, big ending, crowd, applause"
         },
         {
-          "selector": "[role=\"slider\"][aria-label=\"Duration\"]",
-          "value": "180"
-        },
-        {
           "selector": "[role=\"slider\"][aria-label=\"Weirdness\"]",
           "value": "63"
         },
@@ -36,8 +32,8 @@
           "value": "65"
         },
         {
-          "selector": "[role=\"slider\"][aria-label=\"Audio Influence\"]",
-          "value": "50"
+          "selector": "[role=\"slider\"][aria-label=\"Variety\"]",
+          "value": "1"
         }
       ],
       "submit": {

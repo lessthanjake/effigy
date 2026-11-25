@@ -9,7 +9,7 @@ fs.mkdirSync(root,{recursive:true,mode:0o700});
 fs.chmodSync(root,0o700);
 const pending=new Map();
 let active=false, owned=false;
-const allowed=new Set(['status','snapshot','fill','click','pause']);
+const allowed=new Set(['status','snapshot','inspect','fill','click','pause']);
 function respond(socket,message) { if(!socket.destroyed) socket.end(encode(message)); }
 const server=net.createServer(socket=>{
   let received=false;

@@ -26,6 +26,17 @@ try {
  await page.evaluate(()=>document.getElementById('challenge').hidden=true);
  assert.equal((await run('click',{selector:'#create'})).dispatched,true);
  assert.equal((await run('snapshot',{})).songs.length,2);
+ // inspect lists visible controls but never reads a password back.
+ const controls=(await run('inspect',{})).controls;
+ assert.ok(controls.some(c=>c.role==='slider'&&c.ariaLabel==='Weirdness'&&c.value==='63'));
+ const secret=controls.find(c=>c.tag==='INPUT'&&c.sensitive);
+ assert.ok(secret&&secret.value===null);
+ assert.ok(!JSON.stringify(controls).includes('fixture-only'));
+ // click by visible text: exact match only, one submission per call.
+ assert.equal((await run('click',{text:'Create test pair'})).dispatched,true);
+ assert.equal(await page.evaluate(()=>submissions),2);
+ assert.match((await run('click',{text:'Create'})).__effigyError,/found 0/);
+ assert.equal(await page.evaluate(()=>submissions),2);
  await page.screenshot({path:path.resolve('tests/browser-result.png')});
- console.log('PASS: DOM fill/readback, slider, sensitive-field rejection, challenge pause, one submission, two song IDs.');
+ console.log('PASS: DOM fill/readback, slider, sensitive-field rejection, challenge pause, one submission, two song IDs, inspect without secrets, click by exact text.');
 }finally{await browser.close();server.close();fs.rmSync(dir,{recursive:true,force:true});}

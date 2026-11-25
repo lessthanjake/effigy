@@ -13,7 +13,7 @@ async function reportError(error) {
  console.error(message);
 }
 async function selected() {
- const {selection}=await chrome.storage.session.get('selection');
+ const {selection}=await chrome.storage.local.get('selection');
  if(!selection)throw new Error('No selected tab. Click the Effigy icon on Suno or localhost.');
  const tab=await chrome.tabs.get(selection.tabId);
  if(!permitted(tab.url)||new URL(tab.url).origin!==selection.origin)throw new Error('Selected tab changed origin; select it again');
@@ -33,14 +33,14 @@ export function connect() {
   try {
    const {command,args={}}=message;
    if(command==='pause') {
-    await chrome.storage.session.remove('selection');badge('OFF');
+    await chrome.storage.local.remove('selection');badge('OFF');
     connection.postMessage({id:message.id,ok:true,result:{paused:true}});return;
    }
    const selection=await selected();
    let result;
    if(command==='status')result={connected:true,...selection};
    else {
-    if(!['snapshot','fill','click'].includes(command))throw new Error('Unsupported command');
+    if(!['snapshot','inspect','fill','click'].includes(command))throw new Error('Unsupported command');
     const results=await chrome.scripting.executeScript({target:{tabId:selection.tabId},func:pageCommand,args:[command,args,selection.origin]});
     if(results.length!==1||results[0].error)throw new Error(results[0]?.error?.message||'Unexpected frame result');
     if(results[0].result===undefined)throw new Error('Page operation failed; inspect extension console');
@@ -59,12 +59,12 @@ async function toggle(tab) {
   await chrome.action.setTitle({title:'Effigy: open a Suno or localhost page, then click this icon. Browser settings and other sites are not supported.'});
   return;
  }
- const {selection}=await chrome.storage.session.get('selection');
- if(selection?.tabId===tab.id&&port){await chrome.storage.session.remove('selection');badge('OFF');return;}
+ const {selection}=await chrome.storage.local.get('selection');
+ if(selection?.tabId===tab.id&&port){await chrome.storage.local.remove('selection');badge('OFF');return;}
  // Clicking the action (or its shortcut) grants activeTab for this origin.
  // No optional permission prompt is needed, especially after an async storage read.
  const u=new URL(tab.url);
- await chrome.storage.session.set({selection:{tabId:tab.id,origin:u.origin}});
+ await chrome.storage.local.set({selection:{tabId:tab.id,origin:u.origin}});
  await chrome.storage.local.remove('lastError');
  connect();badge('ON');
  chrome.action.setTitle({title:'Effigy assisting this tab. Click to pause.'});
@@ -77,7 +77,20 @@ chrome.commands.onCommand.addListener(async command=>{
  }
 });
 chrome.tabs.onRemoved.addListener(async tabId=>{
- const {selection}=await chrome.storage.session.get('selection');
- if(selection?.tabId===tabId){await chrome.storage.session.remove('selection');badge('OFF');}
+ const {selection}=await chrome.storage.local.get('selection');
+ if(selection?.tabId===tabId){await chrome.storage.local.remove('selection');badge('OFF');}
 });
-// Never regain control automatically after browser restart. The user selects a tab.
+// Preserve an explicitly selected tab across extension reloads. The tab and origin
+// are revalidated before reconnecting; no new tab is opened and no navigation occurs.
+async function restoreSelection() {
+ const {selection}=await chrome.storage.local.get('selection');
+ if(!selection||port)return;
+ try {
+  const tab=await chrome.tabs.get(selection.tabId);
+  if(!permitted(tab.url)||new URL(tab.url).origin!==selection.origin) return;
+  connect();
+  badge('ON');
+  await chrome.action.setTitle({title:'Effigy assisting this tab. Click to pause.'});
+ } catch { /* stale tab or browser shutdown; leave selection for the next valid reload */ }
+}
+restoreSelection();
