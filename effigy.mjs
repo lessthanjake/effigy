@@ -456,6 +456,11 @@ const daemon = async () => {
       ? { executablePath: browser.exe }
       : { channel: flag("channel") || (cloned ? "chrome" : undefined) }),
     args,
+    // Playwright adds --no-sandbox unless this is exactly true, on every
+    // platform and even with channel "chrome". This window carries a signed-in
+    // identity and a wallet and is pointed at the open web: a renderer exploit
+    // without the sandbox runs as you, with your home directory in reach.
+    chromiumSandbox: true,
     viewport: null, // let the real window size govern
     ignoreDefaultArgs: [
       // Drops the "controlled by automated software" tell that some login

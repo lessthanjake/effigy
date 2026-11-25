@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "description": "Headed, session-bearing browser daemon for agent-driven wallet-gated flows.",
-  "bin": { "effigy": "./effigy.mjs" },
-  "dependencies": { "playwright": "1.61.1" }
+  "bin": {
+    "effigy": "./effigy.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.64.1"
+  }
 }

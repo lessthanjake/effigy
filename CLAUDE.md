@@ -51,6 +51,12 @@ Three landmines, all found the hard way — keep the `ignoreDefaultArgs` list in
   the Keychain item's ACL. Chrome ≥137 also dropped `--load-extension`, which is why
   uncloned profiles use Playwright's bundled Chromium instead.
 
+Keep `chromiumSandbox: true` on the launch too. Playwright adds `--no-sandbox` unless that
+option is exactly `true`, on macOS and with `channel: "chrome"` alike, which left the
+signed-in, wallet-loaded window running unsandboxed against the open web. Verify with
+`ps -axo command | grep profiles/<name> | grep -c -- --seatbelt-client` (should equal the
+renderer count, never 0).
+
 And one the clone itself causes: copying a running Chrome can leave Preferences
 saying an extension's service worker is registered while the Service Worker
 database has no such registration. Chrome trusts the preference and never
