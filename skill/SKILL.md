@@ -52,7 +52,7 @@ effigy up --profile real                          # idempotent; safe if another 
 effigy goto --profile real <url> [--wait-for SEL]
 effigy text --profile real | head -60             # cheaper than a screenshot for assertions
 effigy shot --profile real /path/out.png [--full] # then Read the png
-effigy click --profile real "Exact button text"   # or --selector CSS
+effigy click --profile real "Exact button text"   # or --selector CSS; --accept-dialogs for confirm()
 effigy type --profile real --selector 'input[placeholder="Search"]' "query" [--enter]
 effigy eval --profile real "(()=>{ ... return x })()"
 effigy press --profile real Escape | wait 1500 | console --n 20 | net --n 20
@@ -77,6 +77,11 @@ effigy release --profile real                     # give back only your tab when
 6. Framework apps re-render on hover; if a hover-revealed control does not appear,
    look for the same action in a settings gear or a manager dialog instead.
 7. Toasts ("View saved", "Added field") are the confirmation. Screenshot within ~2 s.
+   A click that does nothing on a Reboot / Delete / Upgrade button is usually a JS
+   `confirm()` that Playwright cancelled on its own. Repeat it with `--accept-dialogs`
+   (and `--dialog-text T` for a `prompt()`); the output lists each dialog it answered.
+   Accepting a confirm is the same as pressing OK, so the user's go-ahead rule for
+   configuration changes applies.
 8. When a change can be verified through an API or MCP tool afterwards, do that and
    report it as verified; report UI-only outcomes as "confirmed on screen".
 

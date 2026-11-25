@@ -37,7 +37,7 @@
  *   effigy goto <url> [--new] [--wait-for SEL] [--tab N]
  *   effigy shot <out.png> [--full] [--tab N]
  *   effigy text [--selector SEL] [--tab N]
- *   effigy click <"TEXT"|--selector SEL> [--tab N]
+ *   effigy click <"TEXT"|--selector SEL> [--accept-dialogs [--dialog-text T]] [--tab N]
  *   effigy type --selector SEL <text> [--enter] [--tab N]
  *   effigy press <Key> [--tab N]
  *   effigy eval <js> [--tab N]
@@ -82,7 +82,7 @@ const positional = () => {
   }
   return out;
 };
-const VALUED_FLAGS = new Set(["profile", "port", "channel", "tab", "selector", "wait-for", "n", "timeout", "as", "window-size", "browser", "from", "to"]);
+const VALUED_FLAGS = new Set(["profile", "port", "channel", "tab", "selector", "wait-for", "n", "timeout", "as", "window-size", "browser", "from", "to", "dialog-text"]);
 
 /**
  * Who is asking. You may run many agent sessions at once, and any of them may
@@ -663,6 +663,55 @@ const assertNotWalletUI = (page) => {
     );
 };
 
+// ----------------------------------------------------------- page dialogs
+
+/*
+ * Playwright dismisses any JS dialog nobody listens for, and the daemon holds a
+ * connection to every page for the window's whole life. So a button guarded by
+ * `confirm()` (router Reboot, "Delete this?") gets an automatic "Cancel" and
+ * looks like a dead click. Answering the real dialog from a client would race
+ * the daemon's dismissal (see the unhandledRejection note in the daemon), so
+ * `--accept-dialogs` never lets one open: it replaces confirm/alert/prompt in
+ * every frame with stand-ins that answer at once and log what they were asked.
+ * The stand-ins last until that document navigates away, so a confirm() that
+ * fires after a fetch still gets accepted.
+ */
+const installDialogAnswers = async (page, promptText) => {
+  for (const frame of page.frames()) {
+    await frame
+      .evaluate((answer) => {
+        const w = window;
+        // Each click sets its own prompt answer, even when an earlier click on
+        // this document already installed the stand-ins.
+        w.__effigyPromptAnswer = answer;
+        if (w.__effigyDialogs) return;
+        w.__effigyDialogs = [];
+        const note = (type, message, result) => {
+          w.__effigyDialogs.push({ type, message: String(message ?? ""), result });
+          return result;
+        };
+        w.confirm = (m) => note("confirm", m, true);
+        w.alert = (m) => void note("alert", m, null);
+        w.prompt = (m, d) => note("prompt", m, w.__effigyPromptAnswer ?? d ?? "");
+      }, promptText ?? null)
+      .catch(() => {}); // cross-origin or detached frames: nothing to install
+  }
+};
+
+/** Dialogs the stand-ins answered since the last call, oldest first. */
+const takeDialogLog = async (page) => {
+  const out = [];
+  for (const frame of page.frames()) {
+    const got = await frame.evaluate(() => (window.__effigyDialogs ?? []).splice(0)).catch(() => []);
+    out.push(...got);
+  }
+  return out;
+};
+
+const describeDialog = ({ type, message, result }) =>
+  `dialog: ${type} "${message.replace(/\s+/g, " ").slice(0, 160)}"` +
+  (type === "confirm" ? " -> accepted" : type === "prompt" ? ` -> answered "${result}"` : "");
+
 // ----------------------------------------------------------------- tab leases
 
 const leaseFile = (key) => path.join(paths.leases, `${key}.json`);
@@ -912,10 +961,13 @@ const commands = {
       assertNotWalletUI(page);
       const sel = flag("selector");
       const target = sel ? page.locator(sel).first() : page.getByText(positional()[0] ?? "", { exact: false }).first();
-      if (!sel && !positional()[0]) die('usage: effigy click "TEXT" | effigy click --selector SEL');
+      if (!sel && !positional()[0]) die('usage: effigy click "TEXT" | effigy click --selector SEL [--accept-dialogs]');
+      const accept = has("accept-dialogs");
+      if (accept) await installDialogAnswers(page, flag("dialog-text"));
       await target.click({ timeout: Number(flag("timeout", 10_000)) });
       await page.waitForTimeout(400);
-      console.log(`clicked: ${sel ?? positional()[0]}\n${page.url()}`);
+      const answered = accept ? await takeDialogLog(page) : [];
+      console.log([`clicked: ${sel ?? positional()[0]}`, ...answered.map(describeDialog), page.url()].join("\n"));
     });
   },
 
@@ -1213,7 +1265,7 @@ const HELP = `effigy — headed browser that remembers who you are
   goto <url> [--new] [--wait-for SEL]
   shot <out.png> [--full] [--tab N]
   text [--selector SEL] [--tab N]
-  click "TEXT" | click --selector SEL
+  click "TEXT" | click --selector SEL  [--accept-dialogs [--dialog-text T]]
   type --selector SEL "text" [--enter]
   press <Key> | wait <ms|selector> | eval "js" | close
   console [--n 40] [--clear] | net [--n 40] [--clear]

@@ -189,7 +189,7 @@ one mangled argument. Use the env var or spell the flag out.)
 | `goto <url> [--new] [--wait-for SEL]` | navigate (current tab, or a new one) |
 | `shot <out.png> [--full]` | screenshot |
 | `text [--selector SEL]` | visible text; cheaper than a screenshot for assertions |
-| `click "TEXT"` / `click --selector SEL` | click |
+| `click "TEXT"` / `click --selector SEL` `[--accept-dialogs [--dialog-text T]]` | click. Playwright cancels any JS `confirm()`/`alert()`/`prompt()` nobody answers, so a confirm-guarded button (Reboot, Delete) looks like a dead click. `--accept-dialogs` swaps those three for stand-ins in every frame before the click: confirm returns true, prompt returns `--dialog-text` or its default, and each one answered is printed as a `dialog:` line. They last until the page navigates |
 | `type --selector SEL "text" [--enter]` | fill a field |
 | `press <Key>` / `wait <ms\|selector>` / `close` | keyboard, waiting, close tab |
 | `eval "js"` | evaluate in the page (expression or async IIFE body) |
