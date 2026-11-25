@@ -157,15 +157,44 @@ const cdpAlive = async (port, ms = 800) => {
   }
 };
 
+const pidAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === "EPERM";
+  }
+};
+
+/**
+ * Probe a recorded daemon. A busy Chrome can miss the 800ms probe; treating
+ * that as death used to delete the state file while the daemon kept running,
+ * orphaning a window no command could see or take down. So: retry with a
+ * longer timeout, and only call it dead when the daemon process is gone too.
+ *   { info }        live
+ *   { dead: true }  process gone; safe to clear state
+ *   { hung: true }  process alive, CDP silent; leave state alone
+ */
+const probe = async (state) => {
+  const info = (await cdpAlive(state.port)) ?? (await cdpAlive(state.port, 5000));
+  if (info) return { info };
+  return pidAlive(state.pid) ? { hung: true } : { dead: true };
+};
+
+const hungMessage = (state) =>
+  `effigy: daemon for "${PROFILE}" (pid ${state.pid}) is alive but CDP on port ${state.port} is not answering.\n` +
+  `        Retry in a moment; if it stays stuck, \`effigy down --profile ${PROFILE}\`.`;
+
 /** Resolve a live daemon, or exit with instructions. */
 const requireLive = async () => {
   const state = readState();
   if (!state) die(`effigy: no daemon for profile "${PROFILE}". Start one: effigy up`);
-  const info = await cdpAlive(state.port);
+  const { info, hung } = await probe(state);
+  if (hung) die(hungMessage(state));
   if (!info) {
     clearState();
     die(
-      `effigy: daemon for "${PROFILE}" is gone (port ${state.port} dead — window closed?).\n` +
+      `effigy: daemon for "${PROFILE}" is gone (pid ${state.pid} exited — window closed?).\n` +
         `        Start a new one: effigy up --profile ${PROFILE}`,
     );
   }
@@ -344,11 +373,13 @@ const freePort = async (start) => {
 const up = async () => {
   const existing = readState();
   if (existing) {
-    const info = await cdpAlive(existing.port);
+    const { info, hung } = await probe(existing);
     if (info) {
       console.log(`already up: profile=${PROFILE} port=${existing.port} pid=${existing.pid}`);
       return;
     }
+    // A second Chrome on a locked user-data-dir would crash; report instead.
+    if (hung) die(hungMessage(existing));
     clearState();
   }
 
@@ -837,10 +868,11 @@ const commands = {
   async status() {
     const state = readState();
     if (!state) return console.log(`status: down (profile=${PROFILE})`);
-    const info = await cdpAlive(state.port);
+    const { info, hung } = await probe(state);
+    if (hung) return console.log(`status: unresponsive (pid ${state.pid} alive, port ${state.port} silent)`);
     if (!info) {
       clearState();
-      return console.log(`status: down — stale state cleared (port ${state.port} dead)`);
+      return console.log(`status: down — stale state cleared (pid ${state.pid} exited)`);
     }
     console.log(
       [
