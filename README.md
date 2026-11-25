@@ -186,6 +186,7 @@ one mangled argument. Use the env var or spell the flag out.)
 | `up [--port N] [--channel chrome] [--no-rabby] [--window-size W,H] [--ephemeral]` | boot the daemon |
 | `setup` | `up` + the one-time checklist |
 | `status` / `tabs` / `down` | inspect / list tabs / stop |
+| `hand [url] [--force]` | stop the automated window and reopen the same profile as a plain browser you drive yourself: no debugging port, no Playwright, no flags but `--user-data-dir`, so `navigator.webdriver` is false. effigy cannot drive it; quit it, then `up` to take the profile back |
 | `goto <url> [--new] [--wait-for SEL]` | navigate (current tab, or a new one) |
 | `shot <out.png> [--full]` | screenshot |
 | `text [--selector SEL]` | visible text; cheaper than a screenshot for assertions |
@@ -197,7 +198,7 @@ one mangled argument. Use the env var or spell the flag out.)
 | `net [--n 40] [--clear]` | failed requests and ≥400 responses |
 | `run <script.mjs>` | escape hatch: `export default async ({context, page}) => {}` |
 
-Global flags: `--profile NAME`, `--as LABEL` (override the auto session key),
+Global flags go after the command (`effigy goto URL --profile real`): `--profile NAME`, `--as LABEL` (override the auto session key),
 `--tab N` (indexes the `tabs` listing), `--timeout MS`.
 
 ### Concurrency

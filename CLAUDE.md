@@ -32,7 +32,12 @@ login. Uncloned profiles are strangers and will show you sign-in pages.
    for exactly this reason.
 4. **Screenshot and Read before handing anything to the human.** Confirm it loaded,
    the console is clean, the thing you claim is there is there.
-5. If a page shows logged-out, check `effigy status` for the clone's age before
+5. If a site's bot check refuses the human too (KSL's press-and-hold, for one), it is
+   scoring the automated window itself: a debugging-port browser reports
+   `navigator.webdriver === true` even without `--enable-automation`. Run
+   `effigy hand <url>` and let the human do that part in the plain window; do not try
+   to make the automated window look unautomated. `effigy up` refuses until they quit it.
+6. If a page shows logged-out, check `effigy status` for the clone's age before
    assuming a bug — a stale snapshot looks exactly like a broken tool.
 
 ## Working on effigy itself

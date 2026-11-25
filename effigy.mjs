@@ -121,6 +121,7 @@ const paths = {
   profile: path.join(ROOT, "profiles", PROFILE),
   state: path.join(ROOT, "state", `${PROFILE}.json`),
   leases: path.join(ROOT, "state", `${PROFILE}.leases`),
+  hand: path.join(ROOT, "state", `${PROFILE}.hand.json`),
   logs: path.join(ROOT, "logs", PROFILE),
   extensions: path.join(ROOT, "extensions"),
 };
@@ -145,6 +146,26 @@ const writeState = (s) => {
   fs.writeFileSync(paths.state, JSON.stringify(s, null, 2));
 };
 const clearState = () => fs.rmSync(paths.state, { force: true });
+
+/** The plain-browser record left by `effigy hand`, or null once that browser has exited. */
+const readHand = () => {
+  let h;
+  try {
+    h = JSON.parse(fs.readFileSync(paths.hand, "utf8"));
+  } catch {
+    return null;
+  }
+  let alive = false;
+  try {
+    process.kill(h.pid, 0);
+    alive = true;
+  } catch (err) {
+    alive = err.code === "EPERM";
+  }
+  if (alive) return h;
+  fs.rmSync(paths.hand, { force: true });
+  return null;
+};
 
 const cdpAlive = async (port, ms = 800) => {
   try {
@@ -371,6 +392,12 @@ const freePort = async (start) => {
 };
 
 const up = async () => {
+  const hand = readHand();
+  if (hand)
+    die(
+      `effigy: profile "${PROFILE}" is open as a plain browser (pid ${hand.pid}) from \`effigy hand\`.\n` +
+        `        Quit that window first; Chrome locks the profile to one process.`,
+    );
   const existing = readState();
   if (existing) {
     const { info, hung } = await probe(existing);
@@ -865,7 +892,73 @@ const commands = {
     console.log(`down: profile=${PROFILE}`);
   },
 
+  /**
+   * Hand the profile to the human: stop the automated window and reopen the
+   * same profile as a plain browser process. No --remote-debugging-port, no
+   * Playwright, no flags beyond --user-data-dir, so nothing is attached and the
+   * page sees an ordinary browser (navigator.webdriver === false). effigy cannot
+   * drive this window; quit it, then `effigy up` to take the profile back.
+   */
+  async hand() {
+    const url = positional()[0];
+    const state = readState();
+    if (state) {
+      const { info, hung } = await probe(state);
+      if (hung) die(hungMessage(state));
+      if (info) {
+        // Only sessions whose tab still exists count; "tab gone" leases are
+        // bookkeeping, not someone mid-task.
+        const others = allLeases().filter((l) => l.key !== SESSION);
+        let live = [];
+        if (others.length)
+          await withContext(async (context) => {
+            for (const l of others) if (await pageByTarget(context, l.targetId)) live.push(l.key);
+          });
+        if (live.length && !has("force"))
+          die(
+            `effigy: ${live.length} other session(s) have open tabs on "${PROFILE}" (${live.join(", ")}).\n` +
+              `        Wait for them, or \`effigy hand --force\` to close the automated window on everyone.`,
+          );
+        try {
+          process.kill(state.pid, "SIGTERM");
+        } catch {
+          /* already gone */
+        }
+        for (let i = 0; i < 40 && (await cdpAlive(state.port, 300)); i++) await sleep(150);
+      }
+      clearState();
+      fs.rmSync(paths.leases, { recursive: true, force: true });
+    }
+    if (!fs.existsSync(paths.profile)) die(`effigy: no profile at ${paths.profile}`);
+
+    const marker = readCloneMarker(paths.profile);
+    const browser = BROWSERS[marker?.browser || "chrome"] || BROWSERS.chrome;
+    // Clones must run the binary they were cloned from (Keychain ACL, see BROWSERS).
+    // Uncloned profiles were created by Playwright's bundled Chromium.
+    const exe = marker
+      ? browser.exe || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+      : chromium.executablePath();
+    if (!fs.existsSync(exe)) die(`effigy: browser binary not found: ${exe}`);
+
+    // Chrome holds a lock on the user-data-dir; the daemon's Chrome can take a
+    // moment to release it after SIGTERM.
+    for (let i = 0; i < 40 && fs.existsSync(path.join(paths.profile, "SingletonLock")); i++) await sleep(150);
+
+    const child = spawn(exe, [`--user-data-dir=${paths.profile}`, ...(url ? [url] : [])], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+    fs.writeFileSync(paths.hand, JSON.stringify({ pid: child.pid, exe, at: new Date().toISOString() }));
+    console.log(
+      `hand: profile=${PROFILE} opened as plain ${marker ? browser.label : "Chromium"} (pid ${child.pid}), no automation attached.\n` +
+        `      effigy cannot drive this window. Quit it, then \`effigy up --profile ${PROFILE}\` to take it back.`,
+    );
+  },
+
   async status() {
+    const hand = readHand();
+    if (hand) return console.log(`status: in your hands (plain browser pid ${hand.pid}, no automation). Quit it, then \`effigy up\`.`);
     const state = readState();
     if (!state) return console.log(`status: down (profile=${PROFILE})`);
     const { info, hung } = await probe(state);
@@ -1298,6 +1391,7 @@ const HELP = `effigy — headed browser that remembers who you are
   up [--port N] [--channel chrome] [--no-rabby] [--window-size W,H] [--ephemeral]
   setup                  one-time wallet/login bootstrap, with checklist
   status | tabs | leases | down [--force]
+  hand [url] [--force]   stop automation, reopen this profile as plain Chrome for you
   claim | release        take / give back this session's tab (lazy — rarely needed)
   goto <url> [--new] [--wait-for SEL]
   shot <out.png> [--full] [--tab N]
