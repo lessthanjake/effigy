@@ -219,6 +219,18 @@ The daemon attaches `console` and `net` listeners to every page as it opens, so 
 log covers the whole session, including whatever happened while you were clicking
 through a wallet popup with no client connected.
 
+## Tests
+
+```
+npm test               # unit tests: native framing, assist queue, extension activation
+npm run test:browser   # assist page commands against a local fixture (headless)
+npm run test:native    # extension -> Native Messaging -> socket -> CLI, isolated profile
+npm run test:dialogs   # click --accept-dialogs through the real CLI on an --ephemeral profile
+```
+
+The browser-based tests open their own throwaway profiles and never touch a cloned or
+signed-in one. `test:native` and `test:dialogs` show a window for a few seconds.
+
 ## Where things live
 
 ```
@@ -264,3 +276,7 @@ at a time.
   session, wallet, or window is needed.
 - Your project's own Playwright test suite is the assertion layer. effigy is for
   looking at pages; tests prove behavior.
+
+## Experimental: assist a tab in ordinary Chrome
+
+`effigy assist` adds a Chrome extension and Native Messaging transport. It can fill verified forms and keep a resumable generation queue in a user-selected tab, without launching another browser. Generation remains manual unless explicitly enabled. See [setup, scope and tests](docs/assist.md). Existing Effigy commands keep their original behavior.

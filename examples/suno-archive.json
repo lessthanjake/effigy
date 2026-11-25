@@ -1,0 +1,44 @@
+{
+  "jobs": [
+    {
+      "id": "archive-pair-1-v2",
+      "title": "The Archive (TOP)",
+      "origin": "https://suno.com",
+      "expectedSongs": 2,
+      "fields": [
+        {
+          "selector": "input[placeholder=\"Song Title (Optional)\"]",
+          "index": 0,
+          "value": "The Archive (TOP)"
+        },
+        {
+          "selector": "[data-testid=\"create-form-styles-wrapper\"] textarea",
+          "value": "dark ambient, low room tone, distant typewriter, names whispered too far away to hear, paper rustle, F minor drone, unsettling but quiet, 71 bpm, seamless loop, steady tempo throughout, no intro, no outro, no fade, no build to a climax, consistent texture, game background music"
+        },
+        {
+          "selector": "[aria-label=\"Lyrics editor\"]",
+          "value": ""
+        },
+        {
+          "selector": "input[placeholder=\"Exclude styles\"]",
+          "value": "vocals, lyrics, rap, pop chorus, EDM drop, fade out, big ending, crowd, applause"
+        },
+        {
+          "selector": "[role=\"slider\"][aria-label=\"Weirdness\"]",
+          "value": "63"
+        },
+        {
+          "selector": "[role=\"slider\"][aria-label=\"Style Influence\"]",
+          "value": "65"
+        },
+        {
+          "selector": "[role=\"slider\"][aria-label=\"Variety\"]",
+          "value": "1"
+        }
+      ],
+      "submit": {
+        "selector": "button[aria-label=\"Create song\"]"
+      }
+    }
+  ]
+}

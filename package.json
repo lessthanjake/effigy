@@ -9,5 +9,11 @@
   },
   "dependencies": {
     "playwright": "1.64.1"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "node tests/browser.mjs",
+    "test:native": "node tests/native-browser.mjs",
+    "test:dialogs": "node tests/dialogs.mjs"
   }
 }

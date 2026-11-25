@@ -56,6 +56,13 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+// Optional Native Messaging transport. The existing launcher/profile path stays untouched.
+if (process.argv[2] === "assist") {
+  try { await (await import("./lib/assist-cli.mjs")).main(process.argv.slice(3)); }
+  catch (error) { console.error(`effigy assist: ${error.message}`); process.exit(1); }
+  process.exit(0);
+}
+
 const HOME = os.homedir();
 const ROOT = path.join(HOME, ".effigy");
 const DEFAULT_PORT = 9333;
